@@ -1,0 +1,27 @@
+bodies:
+  - name: base
+    pose: [0, 0, 0]
+    type: dynamic
+    color: [1, 1, 1, 0.4]
+
+    footprints:
+      - type: circle
+        radius: 0.5
+        density: 1
+
+      - type: polygon
+        points: [[-.45, -.05], [-.45, 0.05], [-.35, 0.05], [-.35, -0.05]]
+        density: 1
+
+      - type: polygon
+        points: [[-.125, -.4], [-.125, -.3], [.125, -.3], [.125, -.4]]
+        density: 1
+
+      - type: polygon
+        points: [[-.125, .4], [-.125, .3], [.125, .3], [.125, .4]]
+        density: 1
+
+plugins:
+  - type: DiffDrive
+    name: turtlebot_drive
+    body: base
