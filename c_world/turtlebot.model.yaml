@@ -25,3 +25,11 @@ plugins:
   - type: DiffDrive
     name: turtlebot_drive
     body: base
+  - type: Laser
+    name: kinect
+    body: base
+    topic: scan
+    range: 20
+    angle: {min: -2.356194490192345, max: 2.356194490192345, increment: 0.004363323129985824}
+    noise_std_dev: 0.01
+    update_rate: 10
