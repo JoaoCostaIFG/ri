@@ -2,7 +2,7 @@
 
 bodies:  # List of named bodies
   - name: base
-    pose: [0, 0, 160] 
+    pose: [0, 0, 0] 
     type: dynamic  
     color: [1, 1, 1, 0.75] 
     footprints:
@@ -14,9 +14,14 @@ bodies:  # List of named bodies
         sensor: true
         points: [[-.06025, .2], [-.06025, .15], [.06025, .15], [.06025, .2]]
         density: 1
+      # - type: polygon
+        # collision: false
+        # layers: []
+        # points: [[-2.12, -2.12], [.0, -3.0], [2.12, -2.12], [3.0, 0], [2.12, 2.12], [0, 3.0], [-2.12, 2.12]]
+        # density: 1
   - name: laser_mount
     pose: [0, 0, 0] 
-    type: dynamic  
+    type: dynamic
     color: [1, 0, 0, 0.75] 
     footprints:
       - type: polygon  # Laser model
@@ -26,7 +31,7 @@ bodies:  # List of named bodies
   - name: shell
     pose: [0,0,0]
     type: dynamic
-    color: [0,0,1,1.0]
+    color: [0, 0, 1, 1.0]
     footprints:
       - type: circle
         radius: 0.2552
@@ -61,3 +66,4 @@ plugins:
     angle: {min: -2.356194490192345, max: 2.356194490192345, increment: 0.04363323129985824}
     noise_std_dev: 0.01
     update_rate: 10
+    # layers: ["map"]

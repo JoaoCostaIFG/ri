@@ -126,6 +126,9 @@ class CTurtle:
             angDistTerm = cos(pi - dirs[minDir]["ang"]) + (
                 dirs[minDir]["dist"] - CTurtle.minDistFromWall
             )
+        angDistTerm = cos(dirs[minDir]["ang"]) - (
+            dirs[minDir]["dist"] - CTurtle.minDistFromWall
+        )
         self.angVel = -CTurtle.k * self.linVel * angDistTerm
 
         self.moveTurtle()
@@ -145,6 +148,9 @@ class CTurtle:
     @linVel.setter
     def linVel(self, newLinVel):
         desiredVel = clamp(newLinVel, -CTurtle.maxLinVel, CTurtle.maxLinVel)
+        # TODO
+        self.vel.linear.x = desiredVel
+        return
 
         # v = v0 + a * t
         # desiredVel = self.linVel + a * (1/laserFreq)
