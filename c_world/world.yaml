@@ -4,5 +4,5 @@ layers:
     map: "c.yaml"
     color: [1.0, 1.0, 1.0, 1]
 models:
-  - name: turtlebot
-    model: "turtlebot.model.yaml"
+  - name: CTurtle
+    model: "cturtle.model.yaml"

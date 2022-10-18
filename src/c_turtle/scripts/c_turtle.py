@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 
-from random import random
-from math import radians, inf, isnan, pi, sin, cos, degrees
+from random import random, uniform
+from math import radians, inf, isnan, pi, cos
+from sys import argv
 
 import rospy
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Twist, Pose2D
 from sensor_msgs.msg import LaserScan
+from flatland_msgs.srv import MoveModel
 
 laserRange = 3
 laserFreq = 10
@@ -34,6 +36,8 @@ class CTurtle:
 
         rospy.init_node("CTurtle", anonymous=True)
         self.pub = rospy.Publisher("/cmd_vel", Twist, queue_size=1)
+
+    def subScan(self):
         rospy.Subscriber("/scan", LaserScan, self.scanCallback)
 
     def scanCallback(self, scan):
@@ -89,9 +93,17 @@ class CTurtle:
             self.wiggle()
             return
 
-        if dirs["right"]["dist"] != inf and dirs["front_right"]["dist"] == inf and dirs["back_right"]["dist"] == inf:
+        if (
+            dirs["right"]["dist"] != inf
+            and dirs["front_right"]["dist"] == inf
+            and dirs["back_right"]["dist"] == inf
+        ):
             rospy.logerr("Right end")
-        elif dirs["left"]["dist"] != inf and dirs["front_left"]["dist"] == inf and dirs["back_left"]["dist"] == inf:
+        elif (
+            dirs["left"]["dist"] != inf
+            and dirs["front_left"]["dist"] == inf
+            and dirs["back_left"]["dist"] == inf
+        ):
             rospy.logerr("Left end")
 
         if minDir == "right" or minDir == "front_right":
@@ -114,7 +126,6 @@ class CTurtle:
             angDistTerm = cos(pi - dirs[minDir]["ang"]) + (
                 dirs[minDir]["dist"] - CTurtle.minDistFromWall
             )
-
         self.angVel = -CTurtle.k * self.linVel * angDistTerm
 
         self.moveTurtle()
@@ -193,8 +204,25 @@ class CTurtle:
     def moveTurtle(self):
         self.pub.publish(self.vel)
 
+    def reset(self):
+        vel = Twist()
+        vel.linear.x = 0
+        vel.angular.z = 0
+        self.pub.publish(vel)
+
+        moveService = rospy.ServiceProxy("/move_model", MoveModel)
+        moveService("CTurtle", Pose2D(uniform(-9, 8), uniform(-4, 14), uniform(0, 359)))
+
 
 if __name__ == "__main__":
     cTurtle = CTurtle()
-    while not rospy.is_shutdown():
-        pass
+    if len(argv) > 1:
+        if argv[1] == "reset":
+            cTurtle.reset()
+        elif argv[1] == "follow_wall":
+            cTurtle.subScan()
+            rospy.spin()
+    else:
+        cTurtle.reset()
+        cTurtle.subScan()
+        rospy.spin()
