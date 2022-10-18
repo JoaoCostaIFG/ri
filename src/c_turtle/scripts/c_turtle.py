@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from random import random
-from math import radians, inf, isnan, pi, sin
+from math import radians, inf, isnan, pi, sin, cos, degrees
 
 import rospy
 from geometry_msgs.msg import Twist
@@ -17,10 +17,14 @@ def clamp(val, minVal, maxVal):
 
 
 class CTurtle:
+    clockwise = True
+
     maxLinVel = 2.0
     maxAngVel = 2.0
-    linAcc = 1.0
-    linDec = 0.7
+    linAcc = 1.5
+    linDec = 1.3
+    angAcc = 40.0
+    angDec = 40.0
 
     minDistFromWall = 1.0
     k = 3
@@ -85,6 +89,11 @@ class CTurtle:
             self.wiggle()
             return
 
+        if dirs["right"]["dist"] != inf and dirs["front_right"]["dist"] == inf and dirs["back_right"]["dist"] == inf:
+            rospy.logerr("Right end")
+        elif dirs["left"]["dist"] != inf and dirs["front_left"]["dist"] == inf and dirs["back_left"]["dist"] == inf:
+            rospy.logerr("Left end")
+
         if minDir == "right" or minDir == "front_right":
             front = min(dirs["front"]["dist"], dirs["front_left"]["dist"])
         elif minDir == "left" or minDir == "front_left":
@@ -97,15 +106,16 @@ class CTurtle:
             )
         self.linVel = CTurtle.maxLinVel * front / laserRange
 
-        print(minDir, dirs[minDir])
-        self.angVel = (
-            -CTurtle.k
-            * self.linVel
-            * (
-                sin(pi / 2 - dirs[minDir]["ang"])
-                - (dirs[minDir]["dist"] - CTurtle.minDistFromWall)
+        if CTurtle.clockwise:
+            angDistTerm = cos(dirs[minDir]["ang"]) + (
+                CTurtle.minDistFromWall - dirs[minDir]["dist"]
             )
-        )
+        else:
+            angDistTerm = cos(pi - dirs[minDir]["ang"]) + (
+                dirs[minDir]["dist"] - CTurtle.minDistFromWall
+            )
+
+        self.angVel = -CTurtle.k * self.linVel * angDistTerm
 
         self.moveTurtle()
 
@@ -129,20 +139,17 @@ class CTurtle:
         # desiredVel = self.linVel + a * (1/laserFreq)
         a = (desiredVel - self.linVel) * laserFreq
         if a > 0:
-            print("acelerar")
             if a <= CTurtle.linAcc:
                 self.vel.linear.x = desiredVel
             else:
                 # exceeded max acceleration
                 self.vel.linear.x = self.linVel + CTurtle.linAcc / laserFreq
         elif a < 0:
-            print("travar")
             if a >= CTurtle.linDec:
                 self.vel.linear.x = desiredVel
             else:
                 # exceeded max decelaration
                 self.vel.linear.x = self.linVel - CTurtle.linDec / laserFreq
-        print(self.vel.linear.x)
 
     @property
     def angVel(self):
@@ -150,7 +157,24 @@ class CTurtle:
 
     @angVel.setter
     def angVel(self, newAngVel):
-        self.vel.angular.z = clamp(newAngVel, -CTurtle.maxAngVel, CTurtle.maxAngVel)
+        desiredVel = clamp(newAngVel, -CTurtle.maxAngVel, CTurtle.maxAngVel)
+        # TODO
+        self.vel.angular.z = desiredVel
+        return
+
+        a = (desiredVel - self.angVel) * laserFreq
+        if a > 0:
+            if a <= CTurtle.angAcc:
+                self.vel.angular.z = desiredVel
+            else:
+                # exceeded max acceleration
+                self.vel.angular.z = self.angVel + CTurtle.angAcc / laserFreq
+        elif a < 0:
+            if a >= CTurtle.angDec:
+                self.vel.angular.z = desiredVel
+            else:
+                # exceeded max decelaration
+                self.vel.angular.z = self.angVel - CTurtle.angDec / laserFreq
 
     def wiggle(self):
         rospy.loginfo("wiggling")
