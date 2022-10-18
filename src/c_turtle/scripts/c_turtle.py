@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from random import random
-from math import radians, inf, isnan
+from math import radians, inf, isnan, pi, sin
 
 import rospy
 from geometry_msgs.msg import Twist
@@ -22,6 +22,7 @@ class CTurtle:
     maxLinAcc = 1.5
     maxLinDec = 0.7
     minDistFromWall = 1.0
+    k = 3
 
     def __init__(self) -> None:
         self.vel = Twist()
@@ -31,78 +32,55 @@ class CTurtle:
         rospy.Subscriber("/scan", LaserScan, self.scanCallback)
 
     def scanCallback(self, scan):
-        dirs = {
-            "back": inf,
-            "back_right": inf,
-            "right": inf,
-            "front_right": inf,
-            "front": inf,
-            "front_left": inf,
-            "left": inf,
-            "back_left": inf,
-        }
+        hit = {"dir": "front", "dist": inf, "ang": 0}
 
         angle = scan.angle_min
         for dist in scan.ranges:
-            if not isnan(dist):
+            if dist < hit["dist"]:
+                hit["dist"] = dist
+                hit["ang"] = angle
+
                 absAngle = abs(angle)
                 if absAngle <= rad225:
-                    key = "front"
+                    hit["dir"] = "front"
                 elif absAngle <= rad225 * 3:
-                    key = "front_left" if angle > 0 else "front_right"
+                    hit["dir"] = "front_left" if angle > 0 else "front_right"
                 elif absAngle <= rad225 * 5:
-                    key = "left" if angle > 0 else "right"
+                    hit["dir"] = "left" if angle > 0 else "right"
                 elif absAngle <= rad225 * 7:
-                    key = "back_left" if angle > 0 else "back_right"
+                    hit["dir"] = "back_left" if angle > 0 else "back_right"
                 else:
-                    key = "back"
+                    hit["dir"] = "back"
 
-                dirs[key] = min(dist, dirs[key])
             angle += scan.angle_increment
 
-        self.reactToScan(dirs)
+        self.reactToScan(hit)
         self.moveTurtle()
 
-    def reactToScan(self, dirs):
-        left = min(dirs["left"], dirs["front_left"])
-        right = min(dirs["right"], dirs["front_right"])
-        front = min(dirs["front"], dirs["front_right"], dirs["front_left"])
-
-        rospy.loginfo("%f, %f", left, right)
-
-        if dirs["right"] != inf and self.angVel < 0 and dirs["front_right"] == inf and dirs["back_right"] == inf:
-            rospy.logerr("Ended through right")
-        elif dirs["left"] != inf and self.angVel > 0 and dirs["front_left"] == inf and dirs["back_left"] == inf:
-            rospy.logerr("Ended through left")
-
+    def reactToScan(self, hit):
         # reset v
         self.linVel = 0
         self.angVel = 0
 
-        if min(dirs.values()) == inf:
+        if hit["dist"] == inf:
+            # can't see anything
             self.wiggle()
             return
 
-        laserWallDist = laserRange - CTurtle.minDistFromWall
-        self.linVel = (
-            CTurtle.maxLinVel * (front - CTurtle.minDistFromWall) / laserWallDist
-        )
+        #  if wallDirection == "right":
+        #  front = min(dirs["front"], dirs["front_left"])
+        #  elif wallDirection == "left":
+        #  front = min(dirs["front"], dirs["front_right"])
+        #  else:
+        #  front = min(dirs["front"], dirs["front_right"], dirs["front_left"])
+        #  self.linVel = CTurtle.maxLinVel * front / laserRange
+        self.linVel = 1.0
 
-        if dirs["right"] != inf and dirs["front_right"] != inf:
-            perc = 1 - (right - CTurtle.minDistFromWall) / laserWallDist
-            self.turnLeft(CTurtle.maxAngVel * perc)
-        elif dirs["left"] != inf and dirs["front_left"] != inf:
-            # looking at wall -> look away
-            perc = 1 - (left - CTurtle.minDistFromWall) / laserWallDist
-            self.turnRight(CTurtle.maxAngVel * perc)
-        elif right < left:
-            # not looking at nearby wall -> look at it
-            perc = (right - CTurtle.minDistFromWall) / laserWallDist
-            self.turnRight(CTurtle.maxAngVel * perc)
-        elif left < right:
-            # not looking at nearby wall -> look at it
-            perc = (left - CTurtle.minDistFromWall) / laserWallDist
-            self.turnLeft(CTurtle.maxAngVel * perc)
+        self.angVel = (
+            -CTurtle.k
+            * self.linVel
+            * (sin(pi / 2 - hit["ang"]) - (hit["dist"] - CTurtle.minDistFromWall))
+        )
 
     def turnRight(self, right):
         rospy.loginfo("turn right %f", right)
