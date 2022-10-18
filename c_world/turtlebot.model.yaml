@@ -2,7 +2,7 @@
 
 bodies:  # List of named bodies
   - name: base
-    pose: [0, 0, 180] 
+    pose: [0, 0, 160] 
     type: dynamic  
     color: [1, 1, 1, 0.75] 
     footprints:

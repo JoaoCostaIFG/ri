@@ -18,7 +18,7 @@ def clamp(val, minVal, maxVal):
 
 class CTurtle:
     maxLinVel = 2.0
-    maxAngVel = 1.0
+    maxAngVel = 2.0
     maxLinAcc = 1.5
     maxLinDec = 0.7
     minDistFromWall = 1.0
@@ -27,7 +27,7 @@ class CTurtle:
         self.vel = Twist()
 
         rospy.init_node("CTurtle", anonymous=True)
-        self.pub = rospy.Publisher("/cmd_vel", Twist, queue_size=2)
+        self.pub = rospy.Publisher("/cmd_vel", Twist, queue_size=1)
         rospy.Subscriber("/scan", LaserScan, self.scanCallback)
 
     def scanCallback(self, scan):
@@ -60,36 +60,57 @@ class CTurtle:
                 dirs[key] = min(dist, dirs[key])
             angle += scan.angle_increment
 
-        # reset v
-        self.linVel = 0
-        self.angVel = 0
-
         self.reactToScan(dirs)
         self.moveTurtle()
 
     def reactToScan(self, dirs):
+        left = min(dirs["left"], dirs["front_left"])
+        right = min(dirs["right"], dirs["front_right"])
+        front = min(dirs["front"], dirs["front_right"], dirs["front_left"])
+
+        rospy.loginfo("%f, %f", left, right)
+
+        if dirs["right"] != inf and self.angVel < 0 and dirs["front_right"] == inf and dirs["back_right"] == inf:
+            rospy.logerr("Ended through right")
+        elif dirs["left"] != inf and self.angVel > 0 and dirs["front_left"] == inf and dirs["back_left"] == inf:
+            rospy.logerr("Ended through left")
+
+        # reset v
+        self.linVel = 0
+        self.angVel = 0
+
         if min(dirs.values()) == inf:
             self.wiggle()
             return
 
-        self.linVel = CTurtle.maxLinVel * (dirs["front"] - CTurtle.minDistFromWall) / laserRange
+        laserWallDist = laserRange - CTurtle.minDistFromWall
+        self.linVel = (
+            CTurtle.maxLinVel * (front - CTurtle.minDistFromWall) / laserWallDist
+        )
 
         if dirs["right"] != inf and dirs["front_right"] != inf:
-            self.turnLeft(CTurtle.maxAngVel)
+            perc = 1 - (right - CTurtle.minDistFromWall) / laserWallDist
+            self.turnLeft(CTurtle.maxAngVel * perc)
         elif dirs["left"] != inf and dirs["front_left"] != inf:
-            self.turnRight(CTurtle.maxAngVel)
-        elif dirs["right"] < dirs["left"]:
-            self.turnRight(CTurtle.maxAngVel)
-        elif dirs["right"] > dirs["left"]:
-            self.turnLeft(CTurtle.maxAngVel)
+            # looking at wall -> look away
+            perc = 1 - (left - CTurtle.minDistFromWall) / laserWallDist
+            self.turnRight(CTurtle.maxAngVel * perc)
+        elif right < left:
+            # not looking at nearby wall -> look at it
+            perc = (right - CTurtle.minDistFromWall) / laserWallDist
+            self.turnRight(CTurtle.maxAngVel * perc)
+        elif left < right:
+            # not looking at nearby wall -> look at it
+            perc = (left - CTurtle.minDistFromWall) / laserWallDist
+            self.turnLeft(CTurtle.maxAngVel * perc)
 
     def turnRight(self, right):
         rospy.loginfo("turn right %f", right)
-        self.angVel = -right
+        self.angVel += -right
 
     def turnLeft(self, left):
         rospy.loginfo("turn left %f", left)
-        self.angVel = left
+        self.angVel += left
 
     @property
     def linVel(self):
@@ -110,11 +131,16 @@ class CTurtle:
     def wiggle(self):
         rospy.loginfo("wiggling")
         self.linVel = self.maxLinVel
+        v = CTurtle.maxAngVel * random()
         if random() > 0.5:
-            self.turnRight(random())
+            self.angVel += v
         else:
-            self.turnLeft(random())
-        # TODO reset wandering angle when limit reached?
+            self.angVel -= v
+        # reset wandering angle when limit reached
+        if abs(self.angVel) >= CTurtle.maxAngVel:
+            self.angVel = 0
+        # TODO
+        self.angVel = 0
 
     def moveTurtle(self):
         self.pub.publish(self.vel)
