@@ -19,8 +19,9 @@ def clamp(val, minVal, maxVal):
 class CTurtle:
     maxLinVel = 2.0
     maxAngVel = 2.0
-    maxLinAcc = 1.5
-    maxLinDec = 0.7
+    linAcc = 1.0
+    linDec = 0.7
+
     minDistFromWall = 1.0
     k = 3
 
@@ -32,55 +33,81 @@ class CTurtle:
         rospy.Subscriber("/scan", LaserScan, self.scanCallback)
 
     def scanCallback(self, scan):
-        hit = {"dir": "front", "dist": inf, "ang": 0}
+        dirs = {
+            "front": {"dist": inf, "ang": 0},
+            "front_left": {"dist": inf, "ang": rad225 * 2},
+            "front_right": {"dist": inf, "ang": -rad225 * 2},
+            "left": {"dist": inf, "ang": rad225 * 4},
+            "right": {"dist": inf, "ang": -rad225 * 4},
+            "back_left": {"dist": inf, "ang": rad225 * 6},
+            "back_right": {"dist": inf, "ang": -rad225 * 6},
+            "back": {"dist": inf, "ang": pi},
+        }
 
+        minDir = "front"
+        minDist = inf
         angle = scan.angle_min
         for dist in scan.ranges:
-            if dist < hit["dist"]:
-                hit["dist"] = dist
-                hit["ang"] = angle
-
+            if not isnan(dist):
                 absAngle = abs(angle)
                 if absAngle <= rad225:
-                    hit["dir"] = "front"
+                    key = "front"
                 elif absAngle <= rad225 * 3:
-                    hit["dir"] = "front_left" if angle > 0 else "front_right"
+                    key = "front_left" if angle > 0 else "front_right"
                 elif absAngle <= rad225 * 5:
-                    hit["dir"] = "left" if angle > 0 else "right"
+                    key = "left" if angle > 0 else "right"
                 elif absAngle <= rad225 * 7:
-                    hit["dir"] = "back_left" if angle > 0 else "back_right"
+                    key = "back_left" if angle > 0 else "back_right"
                 else:
-                    hit["dir"] = "back"
+                    key = "back"
 
+                if dist < dirs[key]["dist"]:
+                    # update sector
+                    dirs[key]["dist"] = dist
+                    dirs[key]["ang"] = angle
+                    if dist < minDist:
+                        # update global info
+                        minDir = key
+                        minDist = dist
+
+            # loop increment
             angle += scan.angle_increment
 
-        self.reactToScan(hit)
-        self.moveTurtle()
+        self.reactToScan(dirs, minDir)
 
-    def reactToScan(self, hit):
+    def reactToScan(self, dirs, minDir):
         # reset v
         self.linVel = 0
         self.angVel = 0
 
-        if hit["dist"] == inf:
-            # can't see anything
+        if dirs[minDir]["dist"] == inf:
+            # can't see anything => random walk
             self.wiggle()
             return
 
-        #  if wallDirection == "right":
-        #  front = min(dirs["front"], dirs["front_left"])
-        #  elif wallDirection == "left":
-        #  front = min(dirs["front"], dirs["front_right"])
-        #  else:
-        #  front = min(dirs["front"], dirs["front_right"], dirs["front_left"])
-        #  self.linVel = CTurtle.maxLinVel * front / laserRange
-        self.linVel = 1.0
+        if minDir == "right" or minDir == "front_right":
+            front = min(dirs["front"]["dist"], dirs["front_left"]["dist"])
+        elif minDir == "left" or minDir == "front_left":
+            front = min(dirs["front"]["dist"], dirs["front_right"]["dist"])
+        else:
+            front = min(
+                dirs["front"]["dist"],
+                dirs["front_right"]["dist"],
+                dirs["front_left"]["dist"],
+            )
+        self.linVel = CTurtle.maxLinVel * front / laserRange
 
+        print(minDir, dirs[minDir])
         self.angVel = (
             -CTurtle.k
             * self.linVel
-            * (sin(pi / 2 - hit["ang"]) - (hit["dist"] - CTurtle.minDistFromWall))
+            * (
+                sin(pi / 2 - dirs[minDir]["ang"])
+                - (dirs[minDir]["dist"] - CTurtle.minDistFromWall)
+            )
         )
+
+        self.moveTurtle()
 
     def turnRight(self, right):
         rospy.loginfo("turn right %f", right)
@@ -96,7 +123,26 @@ class CTurtle:
 
     @linVel.setter
     def linVel(self, newLinVel):
-        self.vel.linear.x = clamp(newLinVel, -CTurtle.maxLinVel, CTurtle.maxLinVel)
+        desiredVel = clamp(newLinVel, -CTurtle.maxLinVel, CTurtle.maxLinVel)
+
+        # v = v0 + a * t
+        # desiredVel = self.linVel + a * (1/laserFreq)
+        a = (desiredVel - self.linVel) * laserFreq
+        if a > 0:
+            print("acelerar")
+            if a <= CTurtle.linAcc:
+                self.vel.linear.x = desiredVel
+            else:
+                # exceeded max acceleration
+                self.vel.linear.x = self.linVel + CTurtle.linAcc / laserFreq
+        elif a < 0:
+            print("travar")
+            if a >= CTurtle.linDec:
+                self.vel.linear.x = desiredVel
+            else:
+                # exceeded max decelaration
+                self.vel.linear.x = self.linVel - CTurtle.linDec / laserFreq
+        print(self.vel.linear.x)
 
     @property
     def angVel(self):
@@ -117,8 +163,8 @@ class CTurtle:
         # reset wandering angle when limit reached
         if abs(self.angVel) >= CTurtle.maxAngVel:
             self.angVel = 0
-        # TODO
-        self.angVel = 0
+
+        self.moveTurtle()
 
     def moveTurtle(self):
         self.pub.publish(self.vel)
