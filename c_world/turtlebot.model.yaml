@@ -2,7 +2,7 @@
 
 bodies:  # List of named bodies
   - name: base
-    pose: [0, 0, 0] 
+    pose: [0, 0, 180] 
     type: dynamic  
     color: [1, 1, 1, 0.75] 
     footprints:
@@ -10,12 +10,10 @@ bodies:  # List of named bodies
         sensor: true
         points: [[-.06025, -.2], [-.06025, -.15], [.06025, -.15], [.06025, -.2]]
         density: 1
-
       - type: polygon  # wheel
         sensor: true
         points: [[-.06025, .2], [-.06025, .15], [.06025, .15], [.06025, .2]]
         density: 1
-
   - name: laser_mount
     pose: [0, 0, 0] 
     type: dynamic  
@@ -23,7 +21,7 @@ bodies:  # List of named bodies
     footprints:
       - type: polygon  # Laser model
         sensor: true
-        points: [[.025, -.025], [.025, 0.025], [-.025, 0.025], [-.025, -0.025]]
+        points: [[.025, -.025], [.025, 0.025], [0.1, 0.0], [-.025, 0.025], [-.025, -0.025]]
         density: 1
   - name: shell
     pose: [0,0,0]
