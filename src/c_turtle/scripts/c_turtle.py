@@ -18,7 +18,7 @@ def clamp(val, minVal, maxVal):
 
 class CTurtle:
     maxLinVel = 2.0
-    maxAngVel = 2.0
+    maxAngVel = 1.0
     maxLinAcc = 1.5
     maxLinDec = 0.7
     minDistFromWall = 1.0
@@ -60,72 +60,60 @@ class CTurtle:
                 dirs[key] = min(dist, dirs[key])
             angle += scan.angle_increment
 
+        # reset v
+        self.linVel = 0
+        self.angVel = 0
+
         self.reactToScan(dirs)
         self.moveTurtle()
 
     def reactToScan(self, dirs):
-        rospy.loginfo(dirs)
         if min(dirs.values()) == inf:
             self.wiggle()
             return
 
-        self.setLinVel(
-            CTurtle.maxLinVel * (dirs["front"] - CTurtle.minDistFromWall) / laserRange
-        )
+        self.linVel = CTurtle.maxLinVel * (dirs["front"] - CTurtle.minDistFromWall) / laserRange
 
-        right = min(dirs["right"], dirs["front_right"])
-        left = min(dirs["left"], dirs["front_left"])
+        if dirs["right"] != inf and dirs["front_right"] != inf:
+            self.turnLeft(CTurtle.maxAngVel)
+        elif dirs["left"] != inf and dirs["front_left"] != inf:
+            self.turnRight(CTurtle.maxAngVel)
+        elif dirs["right"] < dirs["left"]:
+            self.turnRight(CTurtle.maxAngVel)
+        elif dirs["right"] > dirs["left"]:
+            self.turnLeft(CTurtle.maxAngVel)
 
-        rospy.loginfo("%f %f", right, left)
-        if right < left:
-            rospy.loginfo("right < left")
-            self.adjustRight(right)
-        elif right > left:
-            rospy.loginfo("left < right")
-            self.adjustLeft(left)
+    def turnRight(self, right):
+        rospy.loginfo("turn right %f", right)
+        self.angVel = -right
 
-    def adjustRight(self, right):
-        if right < CTurtle.minDistFromWall:
-            v = (
-                CTurtle.maxAngVel
-                * (CTurtle.minDistFromWall - right)
-                / CTurtle.minDistFromWall
-            )
-        else:
-            v = (
-                -CTurtle.maxAngVel
-                * (right - CTurtle.minDistFromWall)
-                / (laserRange - CTurtle.minDistFromWall)
-            )
-        rospy.loginfo("adjust right %f", v)
-        self.setAngVel(v)
+    def turnLeft(self, left):
+        rospy.loginfo("turn left %f", left)
+        self.angVel = left
 
-    def adjustLeft(self, left):
-        if left < CTurtle.minDistFromWall:
-            v = (
-                -CTurtle.maxAngVel
-                * (CTurtle.minDistFromWall - left)
-                / CTurtle.minDistFromWall
-            )
-        else:
-            v = (
-                CTurtle.maxAngVel
-                * (left - CTurtle.minDistFromWall)
-                / (laserRange - CTurtle.minDistFromWall)
-            )
-        rospy.loginfo("adjust left %f", v)
-        self.setAngVel(v)
+    @property
+    def linVel(self):
+        return self.vel.linear.x
 
-    def setLinVel(self, linVel):
-        self.vel.linear.x = clamp(linVel, -CTurtle.maxLinVel, CTurtle.maxLinVel)
+    @linVel.setter
+    def linVel(self, newLinVel):
+        self.vel.linear.x = clamp(newLinVel, -CTurtle.maxLinVel, CTurtle.maxLinVel)
 
-    def setAngVel(self, angVel):
-        self.vel.angular.z = clamp(angVel, -CTurtle.maxAngVel, CTurtle.maxAngVel)
+    @property
+    def angVel(self):
+        return self.vel.angular.z
+
+    @angVel.setter
+    def angVel(self, newAngVel):
+        self.vel.angular.z = clamp(newAngVel, -CTurtle.maxAngVel, CTurtle.maxAngVel)
 
     def wiggle(self):
         rospy.loginfo("wiggling")
-        self.setLinVel(self.maxLinVel)
-        #  self.setAngVel(random() * 2 if random() > 0.5 else -2)
+        self.linVel = self.maxLinVel
+        if random() > 0.5:
+            self.turnRight(random())
+        else:
+            self.turnLeft(random())
         # TODO reset wandering angle when limit reached?
 
     def moveTurtle(self):
