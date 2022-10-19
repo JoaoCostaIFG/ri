@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from random import random, uniform
-from math import radians, inf, isnan, pi, cos
+from math import degrees, radians, inf, isnan, pi, cos, sin
 from sys import argv
 
 import rospy
@@ -19,8 +19,6 @@ def clamp(val, minVal, maxVal):
 
 
 class CTurtle:
-    clockwise = True
-
     maxLinVel = 2.0
     maxAngVel = 2.0
     linAcc = 1.5
@@ -52,10 +50,14 @@ class CTurtle:
             "back": {"dist": inf, "ang": pi},
         }
 
+        curveMinIdx = 0
+        curveMaxIdx = 0
+        inCurve = False
         minDir = "front"
         minDist = inf
         angle = scan.angle_min
-        for dist in scan.ranges:
+        for i in range(len(scan.ranges)):
+            dist = scan.ranges[i]
             if not isnan(dist):
                 absAngle = abs(angle)
                 if absAngle <= rad225:
@@ -78,37 +80,70 @@ class CTurtle:
                         minDir = key
                         minDist = dist
 
+                        if not inCurve:
+                            inCurve = True
+                            curveMinIdx = curveMaxIdx = i
+                if inCurve:
+                    curveMaxIdx = i
+            else:
+                inCurve = False
+
             # loop increment
             angle += scan.angle_increment
 
+        if minDist == inf:
+            # no curve
+            curvature = 0
+        else:
+            curve = []
+            for i in range(curveMinIdx, curveMaxIdx + 1):
+                curve.append(
+                    (scan.ranges[i], scan.angle_min + i * scan.angle_increment)
+                )
+            curvature = self._calculateCurvature(curve)
+
         self.reactToScan(dirs, minDir)
 
+    def _calculateCurvature(self, curve):
+        curvature = 0
+
+        n = len(curve)
+        if n <= 3:
+            return curvature
+
+        a = int(n * 0.3)
+        c = n // 2
+        pc = curve[c]
+        pcX = pc[0] * cos(pc[1])
+        pcY = pc[0] * sin(pc[1])
+        for i in range(a, c):
+            pb = curve[c - i]
+            pbX = pb[0] * cos(pb[1])
+            pbY = pb[0] * sin(pb[1])
+            pf = curve[c + i]
+            pfX = pf[0] * cos(pf[1])
+            pfY = pf[0] * sin(pf[1])
+            curvature += (pfY - pcY) / (pfX - pcX)
+            curvature -= (pcY - pbY) / (pcX - pbX)
+
+        return 2 / n * curvature
+
     def reactToScan(self, dirs, minDir):
+        minDist = dirs[minDir]["dist"]
+        minAng = dirs[minDir]["ang"]
+
         # reset v
         self.linVel = 0
         self.angVel = 0
 
-        if dirs[minDir]["dist"] == inf:
+        if minDist == inf:
             # can't see anything => random walk
             self.wiggle()
             return
 
-        if (
-            dirs["right"]["dist"] != inf
-            and dirs["front_right"]["dist"] == inf
-            and dirs["back_right"]["dist"] == inf
-        ):
-            rospy.logerr("Right end")
-        elif (
-            dirs["left"]["dist"] != inf
-            and dirs["front_left"]["dist"] == inf
-            and dirs["back_left"]["dist"] == inf
-        ):
-            rospy.logerr("Left end")
-
-        if minDir == "right" or minDir == "front_right":
+        if minDir.endswith("right"):
             front = min(dirs["front"]["dist"], dirs["front_left"]["dist"])
-        elif minDir == "left" or minDir == "front_left":
+        elif minDir.endswith("left"):
             front = min(dirs["front"]["dist"], dirs["front_right"]["dist"])
         else:
             front = min(
@@ -117,18 +152,13 @@ class CTurtle:
                 dirs["front_left"]["dist"],
             )
         self.linVel = CTurtle.maxLinVel * front / laserRange
+        self.linVel = 1
 
-        if CTurtle.clockwise:
-            angDistTerm = cos(dirs[minDir]["ang"]) + (
-                CTurtle.minDistFromWall - dirs[minDir]["dist"]
-            )
+        print("Angle: ", degrees(minAng), cos(minAng))
+        if minDir.endswith("left") or minDir == "front":
+            angDistTerm = cos(minAng) + (CTurtle.minDistFromWall - minDist)
         else:
-            angDistTerm = cos(pi - dirs[minDir]["ang"]) + (
-                dirs[minDir]["dist"] - CTurtle.minDistFromWall
-            )
-        angDistTerm = cos(dirs[minDir]["ang"]) - (
-            dirs[minDir]["dist"] - CTurtle.minDistFromWall
-        )
+            angDistTerm = cos(pi - minAng) + (minDist - CTurtle.minDistFromWall)
         self.angVel = -CTurtle.k * self.linVel * angDistTerm
 
         self.moveTurtle()

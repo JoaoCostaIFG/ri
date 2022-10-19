@@ -14,11 +14,11 @@ bodies:  # List of named bodies
         sensor: true
         points: [[-.06025, .2], [-.06025, .15], [.06025, .15], [.06025, .2]]
         density: 1
-      # - type: polygon
-        # collision: false
-        # layers: []
-        # points: [[-2.12, -2.12], [.0, -3.0], [2.12, -2.12], [3.0, 0], [2.12, 2.12], [0, 3.0], [-2.12, 2.12]]
-        # density: 1
+      - type: polygon
+        collision: false
+        layers: []
+        points: [[-2.12, -2.12], [.0, -3.0], [2.12, -2.12], [3.0, 0], [2.12, 2.12], [0, 3.0], [-2.12, 2.12]]
+        density: 1
   - name: laser_mount
     pose: [0, 0, 0] 
     type: dynamic
