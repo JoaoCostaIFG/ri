@@ -9,12 +9,15 @@ from geometry_msgs.msg import Twist, Pose2D
 from sensor_msgs.msg import LaserScan
 from flatland_msgs.srv import MoveModel
 
-laserRange = 3
-laserFreq = 10
-rad225 = radians(22.5)
-rad45 = radians(45)
-rad675 = radians(67.5)
-rad90 = radians(90)
+LASER_RANGE = 3
+LASER_FREQ = 10
+RAD22_5 = radians(22.5)
+RAD45 = radians(45)
+RAD67_5 = radians(67.5)
+RAD90 = radians(90)
+RAD112_5 = radians(112.5)
+RAD135 = radians(135)
+RAD157_5 = radians(157.5)
 
 
 def clamp(val, minVal, maxVal):
@@ -57,12 +60,12 @@ class CTurtle:
 
         dirs = {
             "front": {"dist": inf, "ang": 0},
-            "front_left": {"dist": inf, "ang": rad225 * 2},
-            "front_right": {"dist": inf, "ang": -rad225 * 2},
-            "left": {"dist": inf, "ang": rad225 * 4},
-            "right": {"dist": inf, "ang": -rad225 * 4},
-            "back_left": {"dist": inf, "ang": rad225 * 6},
-            "back_right": {"dist": inf, "ang": -rad225 * 6},
+            "front_left": {"dist": inf, "ang": RAD22_5 * 2},
+            "front_right": {"dist": inf, "ang": -RAD22_5 * 2},
+            "left": {"dist": inf, "ang": RAD22_5 * 4},
+            "right": {"dist": inf, "ang": -RAD22_5 * 4},
+            "back_left": {"dist": inf, "ang": RAD22_5 * 6},
+            "back_right": {"dist": inf, "ang": -RAD22_5 * 6},
             "back": {"dist": inf, "ang": pi},
             "minDir": "front",
             "edges": {
@@ -73,9 +76,9 @@ class CTurtle:
         }
 
         dirs["edges"]["left"] = self._calcWallLen(
-            lasers, int((rad90 - angleMin) / angleIncrement))
+            lasers, int((RAD90 - angleMin) / angleIncrement))
         dirs["edges"]["right"] = self._calcWallLen(
-            lasers, int((-rad90 - angleMin) / angleIncrement))
+            lasers, int((-RAD90 - angleMin) / angleIncrement))
 
         minDist = inf
         for laser in lasers:
@@ -83,24 +86,24 @@ class CTurtle:
             dist = laser[1]
 
             absAngle = abs(angle)
-            if absAngle <= rad225:
+            if absAngle <= RAD22_5:
                 key = "front"
-            elif absAngle <= rad225 * 3:
+            elif absAngle <= RAD67_5:
                 key = "front_left" if angle > 0 else "front_right"
-            elif absAngle <= rad225 * 5:
+            elif absAngle <= RAD112_5:
                 key = "left" if angle > 0 else "right"
-            elif absAngle <= rad225 * 7:
+            elif absAngle <= RAD157_5:
                 key = "back_left" if angle > 0 else "back_right"
             else:
                 key = "back"
 
-            if abs(angle - rad225) < angleIncrement * 2:
+            if abs(angle - RAD22_5) < angleIncrement * 2:
                 dirs["edges"]["front_left"] = dist
-            elif abs(angle - -rad225) < angleIncrement * 2:
+            elif abs(angle - -RAD22_5) < angleIncrement * 2:
                 dirs["edges"]["front_right"] = dist
-            elif abs(angle - rad225 * 6) < angleIncrement * 2:
+            elif abs(angle - RAD135) < angleIncrement * 2:
                 dirs["edges"]["back_left"] = dist
-            elif abs(angle - -rad225 * 6) < angleIncrement * 2:
+            elif abs(angle - -RAD135) < angleIncrement * 2:
                 dirs["edges"]["back_right"] = dist
 
             if dist < dirs[key]["dist"]:
@@ -174,7 +177,7 @@ class CTurtle:
                 dirs["front_right"]["dist"],
                 dirs["front_left"]["dist"],
             )
-        self.linVel = CTurtle.maxLinVel * front / laserRange
+        self.linVel = CTurtle.maxLinVel * front / LASER_RANGE
 
         if minDir == "front":
             minLeft = min(dirs["front_left"]["dist"], dirs["left"]["dist"])
@@ -216,20 +219,20 @@ class CTurtle:
         return
 
         # v = v0 + a * t
-        # desiredVel = self.linVel + a * (1/laserFreq)
-        a = (desiredVel - self.linVel) * laserFreq
+        # desiredVel = self.linVel + a * (1/LASER_FREQ)
+        a = (desiredVel - self.linVel) * LASER_FREQ
         if a > 0:
             if a <= CTurtle.linAcc:
                 self.vel.linear.x = desiredVel
             else:
                 # exceeded max acceleration
-                self.vel.linear.x = self.linVel + CTurtle.linAcc / laserFreq
+                self.vel.linear.x = self.linVel + CTurtle.linAcc / LASER_FREQ
         elif a < 0:
             if a >= CTurtle.linDec:
                 self.vel.linear.x = desiredVel
             else:
                 # exceeded max decelaration
-                self.vel.linear.x = self.linVel - CTurtle.linDec / laserFreq
+                self.vel.linear.x = self.linVel - CTurtle.linDec / LASER_FREQ
 
     @property
     def angVel(self):
@@ -241,19 +244,19 @@ class CTurtle:
         self.vel.angular.z = desiredVel
         return
 
-        a = (desiredVel - self.angVel) * laserFreq
+        a = (desiredVel - self.angVel) * LASER_FREQ
         if a > 0:
             if a <= CTurtle.angAcc:
                 self.vel.angular.z = desiredVel
             else:
                 # exceeded max acceleration
-                self.vel.angular.z = self.angVel + CTurtle.angAcc / laserFreq
+                self.vel.angular.z = self.angVel + CTurtle.angAcc / LASER_FREQ
         elif a < 0:
             if a >= CTurtle.angDec:
                 self.vel.angular.z = desiredVel
             else:
                 # exceeded max decelaration
-                self.vel.angular.z = self.angVel - CTurtle.angDec / laserFreq
+                self.vel.angular.z = self.angVel - CTurtle.angDec / LASER_FREQ
 
     def wiggle(self):
         rospy.loginfo("wiggling")
