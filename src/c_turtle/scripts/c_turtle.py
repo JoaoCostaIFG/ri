@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from random import random, uniform
-from math import degrees, radians, inf, isnan, pi, cos, sin
+from math import degrees, radians, inf, isnan, pi, cos, sin, sqrt
 from sys import argv
 
 import rospy
@@ -12,6 +12,9 @@ from flatland_msgs.srv import MoveModel
 laserRange = 3
 laserFreq = 10
 rad225 = radians(22.5)
+rad45 = radians(45)
+rad675 = radians(67.5)
+rad90 = radians(90)
 
 
 def clamp(val, minVal, maxVal):
@@ -20,11 +23,11 @@ def clamp(val, minVal, maxVal):
 
 class CTurtle:
     maxLinVel = 2.0
-    maxAngVel = 2.0
+    maxAngVel = 3.0
     linAcc = 1.5
-    linDec = 1.3
-    angAcc = 40.0
-    angDec = 40.0
+    linDec = 2.0
+    angAcc = 2.0
+    angDec = 2.0
 
     minDistFromWall = 1.0
     k = 3
@@ -36,15 +39,21 @@ class CTurtle:
         self.pub = rospy.Publisher("/cmd_vel", Twist, queue_size=1)
 
     def subScan(self):
-        rospy.Subscriber("/scan", LaserScan, self.scanCallback)
+        rospy.Subscriber("/scan", LaserScan, self._scanCallback)
 
-    def scanCallback(self, scan):
+    def _scanCallback(self, scan):
         lasers = [0] * len(scan.ranges)
         angle = scan.angle_min
         for i in range(len(scan.ranges)):
             dist = scan.ranges[i]
             lasers[i] = (angle, dist if not isnan(dist) else inf)
             angle += scan.angle_increment
+
+        dirs = self._processLasers(lasers, scan.angle_increment)
+        self.reactToScan(dirs)
+
+    def _processLasers(self, lasers, angleIncrement):
+        angleMin = lasers[0][0]
 
         dirs = {
             "front": {"dist": inf, "ang": 0},
@@ -55,18 +64,19 @@ class CTurtle:
             "back_left": {"dist": inf, "ang": rad225 * 6},
             "back_right": {"dist": inf, "ang": -rad225 * 6},
             "back": {"dist": inf, "ang": pi},
+            "minDir": "front",
             "edges": {
-                "front": inf,
                 "left": inf,
                 "front_left": inf,
                 "back_left": inf,
-                "right": inf,
-                "front_right": inf,
-                "back_right": inf,
             }
         }
 
-        minDir = "front"
+        dirs["edges"]["left"] = self._calcWallLen(
+            lasers, int((rad90 - angleMin) / angleIncrement))
+        dirs["edges"]["right"] = self._calcWallLen(
+            lasers, int((-rad90 - angleMin) / angleIncrement))
+
         minDist = inf
         for laser in lasers:
             angle = laser[0]
@@ -84,20 +94,14 @@ class CTurtle:
             else:
                 key = "back"
 
-            if angle < scan.angle_increment * 2:
-                dirs["edges"]["front"] = min(dirs["edges"]["front"], dist)
-            elif abs(angle - rad225 * 2) < scan.angle_increment * 2:
-                dirs["edges"]["front_left"] = min(dirs["edges"]["front_left"], dist)
-            elif abs(angle - -rad225 * 2) < scan.angle_increment * 2:
-                dirs["edges"]["front_right"] = min(dirs["edges"]["front_right"], dist)
-            elif abs(angle - rad225 * 4) < scan.angle_increment * 2:
-                dirs["edges"]["left"] = min(dirs["edges"]["left"], dist)
-            elif abs(angle - -rad225 * 4) < scan.angle_increment * 2:
-                dirs["edges"]["right"] = min(dirs["edges"]["right"], dist)
-            elif abs(angle - rad225 * 6) < scan.angle_increment * 2:
-                dirs["edges"]["back_left"] = min(dirs["edges"]["back_left"], dist)
-            elif abs(angle - -rad225 * 6) < scan.angle_increment * 2:
-                dirs["edges"]["back_right"] = min(dirs["edges"]["back_right"], dist)
+            if abs(angle - rad225) < angleIncrement * 2:
+                dirs["edges"]["front_left"] = dist
+            elif abs(angle - -rad225) < angleIncrement * 2:
+                dirs["edges"]["front_right"] = dist
+            elif abs(angle - rad225 * 6) < angleIncrement * 2:
+                dirs["edges"]["back_left"] = dist
+            elif abs(angle - -rad225 * 6) < angleIncrement * 2:
+                dirs["edges"]["back_right"] = dist
 
             if dist < dirs[key]["dist"]:
                 # update sector
@@ -105,16 +109,37 @@ class CTurtle:
                 dirs[key]["ang"] = angle
                 if dist < minDist:
                     # update global info
-                    minDir = key
+                    dirs["minDir"] = key
                     minDist = dist
 
-        self.reactToScan(dirs, minDir)
+        return dirs
 
-    def reactToScan(self, dirs, minDir):
-        # reset v
-        self.linVel = 0
-        self.angVel = 0
+    def _calcWallLen(self, lasers, idx):
+        if lasers[idx][1] != inf:
+            frontPoint = backPoint = lasers[idx]
+            i = 1
+            while idx + i < len(lasers):
+                newBackPoint = lasers[idx + i]
+                if newBackPoint[1] != inf:
+                    backPoint = newBackPoint
+                i += 1
+            i = 1
+            while idx - i >= 0:
+                newFrontPoint = lasers[idx - i]
+                if newFrontPoint[1] != inf:
+                    frontPoint = newFrontPoint
+                i += 1
+            frontCoord = (frontPoint[1] * cos(frontPoint[0]),
+                          frontPoint[1] * sin(frontPoint[0]))
+            backCoord = (backPoint[1] * cos(backPoint[0]),
+                         backPoint[1] * sin(backPoint[0]))
+            return sqrt(
+                (frontCoord[0] - backCoord[0]) ** 2 + (frontCoord[1] - backCoord[1]) ** 2)
+        else:
+            return inf
 
+    def reactToScan(self, dirs):
+        minDir = dirs["minDir"]
         minDist = dirs[minDir]["dist"]
         minAng = dirs[minDir]["ang"]
 
@@ -123,12 +148,21 @@ class CTurtle:
             self.wiggle()
             return
 
-        if dirs["edges"]["left"] == inf and dirs["edges"]["back_left"] == inf and dirs["edges"]["front"] == inf and dirs["edges"]["front_left"] != inf:
-            rospy.loginfo(dirs["edges"])
-            rospy.logerr("Foi pela esquierda")
-        #elif dirs["edges"]["right"] != inf and dirs["edges"]["front_right"] == inf and dirs["edges"]["back_right"] == inf:
-        #    rospy.loginfo(dirs["edges"])
-        #    rospy.logerr("Foi pela direita")
+        if abs(minDist - CTurtle.minDistFromWall) < 0.1 * CTurtle.k:
+            if 1.75 < dirs["edges"]["left"] < 1.9 and dirs["edges"]["back_left"] == inf:
+                rospy.logerr("Foi pela esquierda")
+                rospy.loginfo(dirs["edges"]["left"])
+                self.linVel = 0
+                self.angVel = 0
+                self.moveTurtle()
+                return
+            elif 1.78 < dirs["edges"]["right"] < 1.9  and dirs["edges"]["back_right"] == inf:
+                rospy.logerr("Foi pela direita")
+                rospy.loginfo(dirs["edges"]["right"])
+                self.linVel = 0
+                self.angVel = 0
+                self.moveTurtle()
+                return
 
         if minDir.endswith("right"):
             front = min(dirs["front"]["dist"], dirs["front_left"]["dist"])
@@ -154,7 +188,6 @@ class CTurtle:
         else:
             turnDir = "right"
 
-
         if turnDir == "left":
             angDistTerm = cos(minAng) + (CTurtle.minDistFromWall - minDist)
         else:
@@ -179,6 +212,8 @@ class CTurtle:
     @linVel.setter
     def linVel(self, newLinVel):
         desiredVel = clamp(newLinVel, -CTurtle.maxLinVel, CTurtle.maxLinVel)
+        self.vel.linear.x = desiredVel
+        return
 
         # v = v0 + a * t
         # desiredVel = self.linVel + a * (1/laserFreq)
@@ -203,7 +238,6 @@ class CTurtle:
     @angVel.setter
     def angVel(self, newAngVel):
         desiredVel = clamp(newAngVel, -CTurtle.maxAngVel, CTurtle.maxAngVel)
-        # TODO
         self.vel.angular.z = desiredVel
         return
 
@@ -245,8 +279,8 @@ class CTurtle:
         self.pub.publish(vel)
 
         moveService = rospy.ServiceProxy("/move_model", MoveModel)
-        moveService("CTurtle", Pose2D(uniform(-9, 8),
-                    uniform(-4, 14), uniform(0, 359)))
+        moveService("CTurtle", Pose2D(uniform(-6, 6),
+                    uniform(-5, 7), uniform(0, 359)))
 
 
 if __name__ == "__main__":
