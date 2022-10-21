@@ -28,9 +28,9 @@ class CTurtle:
     maxLinVel = 2.0
     maxAngVel = 3.0
     linAcc = 1.5
-    linDec = 2.0
-    angAcc = 2.0
-    angDec = 2.0
+    linDec = 3.0
+    angAcc = 4.0
+    angDec = 4.0
 
     minDistFromWall = 1.0
     k = 3
@@ -180,18 +180,25 @@ class CTurtle:
         self.linVel = CTurtle.maxLinVel * front / LASER_RANGE
 
         if minDir == "front":
-            minLeft = min(dirs["front_left"]["dist"], dirs["left"]["dist"])
-            minRight = min(dirs["front_right"]["dist"], dirs["right"]["dist"])
-            if minLeft < minRight:
-                turnDir = "left"
+            if dirs["left"]["dist"] == inf and dirs["right"]["dist"] != inf:
+                # was following wall on right and found obstacle in front => circle obstacle
+                wallSide = "right"
+            elif dirs["left"]["dist"] != inf and dirs["right"]["dist"] == inf:
+                # was following wall on left and found obstacle in front => circle obstacle
+                wallSide = "left"
             else:
-                turnDir = "right"
+                # found obstacle in front, which way to turn? The closest
+                minLeft = min(dirs["front_left"]["dist"], dirs["left"]["dist"])
+                minRight = min(dirs["front_right"]["dist"], dirs["right"]["dist"])
+                wallSide = "left" if minLeft < minRight else "right"
         elif minDir.endswith("left"):
-            turnDir = "left"
+            # keep following left
+            wallSide = "left"
         else:
-            turnDir = "right"
+            # keep following right
+            wallSide = "right"
 
-        if turnDir == "left":
+        if wallSide == "left":
             angDistTerm = cos(minAng) + (CTurtle.minDistFromWall - minDist)
         else:
             angDistTerm = cos(pi - minAng) + \
@@ -215,8 +222,6 @@ class CTurtle:
     @linVel.setter
     def linVel(self, newLinVel):
         desiredVel = clamp(newLinVel, -CTurtle.maxLinVel, CTurtle.maxLinVel)
-        self.vel.linear.x = desiredVel
-        return
 
         # v = v0 + a * t
         # desiredVel = self.linVel + a * (1/LASER_FREQ)
