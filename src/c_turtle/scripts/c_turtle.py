@@ -11,6 +11,12 @@ from flatland_msgs.srv import MoveModel
 
 LASER_RANGE = 3
 LASER_FREQ = 10
+
+STOP_WALL_LEN = 1.95
+STOP_TOLERANCE = 0.1
+STOP_MIN = STOP_WALL_LEN * (1 - STOP_TOLERANCE)
+STOP_MAX = STOP_WALL_LEN * (1 + STOP_TOLERANCE)
+
 RAD22_5 = radians(22.5)
 RAD45 = radians(45)
 RAD67_5 = radians(67.5)
@@ -22,6 +28,13 @@ RAD157_5 = radians(157.5)
 
 def clamp(val, minVal, maxVal):
     return max(min(val, maxVal), minVal)
+
+
+def pointDist(p1, p2) -> float:
+    return sqrt((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2)
+
+def laserToPoint(laser):
+    return (laser[1] * cos(laser[0]), laser[1] * sin(laser[0]))
 
 
 class CTurtle:
@@ -72,13 +85,15 @@ class CTurtle:
                 "left": inf,
                 "front_left": inf,
                 "back_left": inf,
-            }
+            },
         }
 
         dirs["edges"]["left"] = self._calcWallLen(
-            lasers, int((RAD90 - angleMin) / angleIncrement))
+            lasers, int((RAD90 - angleMin) / angleIncrement)
+        )
         dirs["edges"]["right"] = self._calcWallLen(
-            lasers, int((-RAD90 - angleMin) / angleIncrement))
+            lasers, int((-RAD90 - angleMin) / angleIncrement)
+        )
 
         minDist = inf
         for laser in lasers:
@@ -119,25 +134,31 @@ class CTurtle:
 
     def _calcWallLen(self, lasers, idx):
         if lasers[idx][1] != inf:
-            frontPoint = backPoint = lasers[idx]
+            firstIdx = lastIdx = idx
             i = 1
             while idx + i < len(lasers):
-                newBackPoint = lasers[idx + i]
-                if newBackPoint[1] != inf:
-                    backPoint = newBackPoint
+                newLastIdx = idx + i
+                if lasers[newLastIdx][1] != inf:
+                    lastIdx = newLastIdx
                 i += 1
             i = 1
             while idx - i >= 0:
-                newFrontPoint = lasers[idx - i]
-                if newFrontPoint[1] != inf:
-                    frontPoint = newFrontPoint
+                newFirstIdx = idx - i
+                if lasers[newFirstIdx][1] != inf:
+                    firstIdx = newFirstIdx
                 i += 1
-            frontCoord = (frontPoint[1] * cos(frontPoint[0]),
-                          frontPoint[1] * sin(frontPoint[0]))
-            backCoord = (backPoint[1] * cos(backPoint[0]),
-                         backPoint[1] * sin(backPoint[0]))
-            return sqrt(
-                (frontCoord[0] - backCoord[0]) ** 2 + (frontCoord[1] - backCoord[1]) ** 2)
+
+            ret = 0
+            points = map(lambda idx: laserToPoint(lasers[idx]), range(firstIdx, lastIdx + 1))
+            try:
+                p1 = next(points)
+                while True:
+                    p2 = next(points)
+                    ret += pointDist(p1, p2)
+                    p1 = p2
+            except StopIteration:
+                pass
+            return ret
         else:
             return inf
 
@@ -152,20 +173,23 @@ class CTurtle:
             return
 
         if abs(minDist - CTurtle.minDistFromWall) < 0.1 * CTurtle.k:
-            if 1.75 < dirs["edges"]["left"] < 1.9 and dirs["edges"]["back_left"] == inf:
-                rospy.logerr("Foi pela esquierda")
-                rospy.loginfo(dirs["edges"]["left"])
+            if dirs["edges"]["back_left"] == inf and STOP_MIN < dirs["edges"]["left"] < STOP_MAX:
+                rospy.logerr("End left: %f", dirs["edges"]["left"])
                 self.linVel = 0
                 self.angVel = 0
                 self.moveTurtle()
                 return
-            elif 1.78 < dirs["edges"]["right"] < 1.9  and dirs["edges"]["back_right"] == inf:
-                rospy.logerr("Foi pela direita")
-                rospy.loginfo(dirs["edges"]["right"])
+            elif (
+                dirs["edges"]["back_right"] == inf
+                and STOP_MIN < dirs["edges"]["right"] < STOP_MAX
+            ):
+                rospy.logerr("End right: %f", dirs["edges"]["right"])
                 self.linVel = 0
                 self.angVel = 0
                 self.moveTurtle()
                 return
+            else:
+                print(dirs["edges"]["left"], dirs["edges"]["right"])
 
         if minDir.endswith("right"):
             front = min(dirs["front"]["dist"], dirs["front_left"]["dist"])
@@ -201,8 +225,7 @@ class CTurtle:
         if wallSide == "left":
             angDistTerm = cos(minAng) + (CTurtle.minDistFromWall - minDist)
         else:
-            angDistTerm = cos(pi - minAng) + \
-                (minDist - CTurtle.minDistFromWall)
+            angDistTerm = cos(pi - minAng) + (minDist - CTurtle.minDistFromWall)
         self.angVel = -CTurtle.k * self.linVel * angDistTerm
 
         self.moveTurtle()
@@ -287,8 +310,7 @@ class CTurtle:
         self.pub.publish(vel)
 
         moveService = rospy.ServiceProxy("/move_model", MoveModel)
-        moveService("CTurtle", Pose2D(uniform(-6, 6),
-                    uniform(-5, 7), uniform(0, 359)))
+        moveService("CTurtle", Pose2D(uniform(-6, 6), uniform(-5, 7), uniform(0, 359)))
 
 
 if __name__ == "__main__":
