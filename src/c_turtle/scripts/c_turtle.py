@@ -39,6 +39,9 @@ def laserToPoint(laser):
 
 
 class CTurtle:
+    doStop = True
+    doOdometry = False
+
     maxLinVel = 2.0
     maxAngVel = 3.0
     linAcc = 1.5
@@ -54,8 +57,9 @@ class CTurtle:
 
         rospy.init_node("CTurtle", anonymous=True)
         self.pub = rospy.Publisher("/cmd_vel", Twist, queue_size=1)
-        print('"seq","sec","x","y"')
-        #  rospy.Subscriber("/odometry/ground_truth", Odometry, self._odometryGroundTruth)
+        if CTurtle.doOdometry:
+            print('"seq","sec","x","y"')
+            rospy.Subscriber("/odometry/ground_truth", Odometry, self._odometryGroundTruth)
 
     def subScan(self):
         rospy.Subscriber("/scan", LaserScan, self._scanCallback)
@@ -178,7 +182,7 @@ class CTurtle:
             self.wiggle()
             return
 
-        if abs(minDist - CTurtle.minDistFromWall) < 0.1 * CTurtle.k:
+        if CTurtle.doStop and abs(minDist - CTurtle.minDistFromWall) < 0.1 * CTurtle.k:
             if dirs["edges"]["back_left"] == inf and STOP_MIN < dirs["edges"]["left"] < STOP_MAX:
                 rospy.logerr("End left: %f", dirs["edges"]["left"])
                 self.linVel = 0
