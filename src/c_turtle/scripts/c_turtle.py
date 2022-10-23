@@ -7,6 +7,7 @@ from sys import argv
 import rospy
 from geometry_msgs.msg import Twist, Pose2D
 from sensor_msgs.msg import LaserScan
+from nav_msgs.msg import Odometry
 from flatland_msgs.srv import MoveModel
 
 LASER_RANGE = 3
@@ -53,9 +54,14 @@ class CTurtle:
 
         rospy.init_node("CTurtle", anonymous=True)
         self.pub = rospy.Publisher("/cmd_vel", Twist, queue_size=1)
+        print('"seq","sec","x","y"')
+        #  rospy.Subscriber("/odometry/ground_truth", Odometry, self._odometryGroundTruth)
 
     def subScan(self):
         rospy.Subscriber("/scan", LaserScan, self._scanCallback)
+
+    def _odometryGroundTruth(self, odometry):
+        print(f"{odometry.header.seq},{odometry.header.stamp.secs + odometry.header.stamp.nsecs / 1000000000},{odometry.pose.pose.position.x},{odometry.pose.pose.position.y}")
 
     def _scanCallback(self, scan):
         lasers = [0] * len(scan.ranges)
@@ -188,8 +194,6 @@ class CTurtle:
                 self.angVel = 0
                 self.moveTurtle()
                 return
-            else:
-                print(dirs["edges"]["left"], dirs["edges"]["right"])
 
         if minDir.endswith("right"):
             front = min(dirs["front"]["dist"], dirs["front_left"]["dist"])
@@ -230,14 +234,6 @@ class CTurtle:
 
         self.moveTurtle()
 
-    def turnRight(self, right):
-        rospy.loginfo("turn right %f", right)
-        self.angVel += -right
-
-    def turnLeft(self, left):
-        rospy.loginfo("turn left %f", left)
-        self.angVel += left
-
     @property
     def linVel(self):
         return self.vel.linear.x
@@ -269,8 +265,6 @@ class CTurtle:
     @angVel.setter
     def angVel(self, newAngVel):
         desiredVel = clamp(newAngVel, -CTurtle.maxAngVel, CTurtle.maxAngVel)
-        self.vel.angular.z = desiredVel
-        return
 
         a = (desiredVel - self.angVel) * LASER_FREQ
         if a > 0:
@@ -287,7 +281,7 @@ class CTurtle:
                 self.vel.angular.z = self.angVel - CTurtle.angDec / LASER_FREQ
 
     def wiggle(self):
-        rospy.loginfo("wiggling")
+        #  rospy.loginfo("wiggling")
         self.linVel = self.maxLinVel
         v = CTurtle.maxAngVel * random()
         if random() > 0.5:
