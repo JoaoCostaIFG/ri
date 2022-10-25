@@ -1,0 +1,6 @@
+<launch>
+  <rosparam file="$(find c_turtle)/param/params.yaml" command="load" ns="c_turtle" />
+
+  <node name="c_turtle" pkg="c_turtle" type="c_turtle.py" output="screen">
+  </node>
+</launch>

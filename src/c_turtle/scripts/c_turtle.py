@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 
 from random import random, uniform
-from math import degrees, radians, inf, isnan, pi, cos, sin, sqrt
-from sys import argv
+from math import radians, inf, isnan, pi, cos, sin, sqrt
 
 import rospy
 from geometry_msgs.msg import Twist, Pose2D
@@ -34,6 +33,7 @@ def clamp(val, minVal, maxVal):
 def pointDist(p1, p2) -> float:
     return sqrt((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2)
 
+
 def laserToPoint(laser):
     return (laser[1] * cos(laser[0]), laser[1] * sin(laser[0]))
 
@@ -55,17 +55,20 @@ class CTurtle:
     def __init__(self) -> None:
         self.vel = Twist()
 
-        rospy.init_node("CTurtle", anonymous=True)
         self.pub = rospy.Publisher("/cmd_vel", Twist, queue_size=1)
         if CTurtle.doOdometry:
             print('"seq","sec","x","y"')
-            rospy.Subscriber("/odometry/ground_truth", Odometry, self._odometryGroundTruth)
+            rospy.Subscriber(
+                "/odometry/ground_truth", Odometry, self._odometryGroundTruth
+            )
 
     def subScan(self):
         rospy.Subscriber("/scan", LaserScan, self._scanCallback)
 
     def _odometryGroundTruth(self, odometry):
-        print(f"{odometry.header.seq},{odometry.header.stamp.secs + odometry.header.stamp.nsecs / 1000000000},{odometry.pose.pose.position.x},{odometry.pose.pose.position.y}")
+        print(
+            f"{odometry.header.seq},{odometry.header.stamp.secs + odometry.header.stamp.nsecs / 1000000000},{odometry.pose.pose.position.x},{odometry.pose.pose.position.y}"
+        )
 
     def _scanCallback(self, scan):
         lasers = [0] * len(scan.ranges)
@@ -159,7 +162,9 @@ class CTurtle:
                 i += 1
 
             ret = 0
-            points = map(lambda idx: laserToPoint(lasers[idx]), range(firstIdx, lastIdx + 1))
+            points = map(
+                lambda idx: laserToPoint(lasers[idx]), range(firstIdx, lastIdx + 1)
+            )
             try:
                 p1 = next(points)
                 while True:
@@ -183,7 +188,10 @@ class CTurtle:
             return
 
         if CTurtle.doStop and abs(minDist - CTurtle.minDistFromWall) < 0.1 * CTurtle.k:
-            if dirs["edges"]["back_left"] == inf and STOP_MIN < dirs["edges"]["left"] < STOP_MAX:
+            if (
+                dirs["edges"]["back_left"] == inf
+                and STOP_MIN < dirs["edges"]["left"] < STOP_MAX
+            ):
                 rospy.logerr("End left: %f", dirs["edges"]["left"])
                 self.linVel = 0
                 self.angVel = 0
@@ -307,19 +315,27 @@ class CTurtle:
         vel.angular.z = 0
         self.pub.publish(vel)
 
+        rospy.wait_for_service("/move_model")
         moveService = rospy.ServiceProxy("/move_model", MoveModel)
         moveService("CTurtle", Pose2D(uniform(-6, 6), uniform(-5, 7), uniform(0, 359)))
 
 
 if __name__ == "__main__":
+    rospy.init_node("CTurtle", anonymous=True)
+
+    CTurtle.doOdometry = rospy.get_param("~do-odometry")
+    CTurtle.doStop = rospy.get_param("~do-stop")
+    CTurtle.maxLinVel = rospy.get_param("~max-linVel")
+    CTurtle.maxAngVel = rospy.get_param("~max-angVel")
+    CTurtle.linAcc = rospy.get_param("~linAcc")
+    CTurtle.linDec = rospy.get_param("~linDec")
+    CTurtle.angAcc = rospy.get_param("~angAcc")
+    CTurtle.angDec = rospy.get_param("~angDec")
+
     cTurtle = CTurtle()
-    if len(argv) > 1:
-        if argv[1] == "reset":
-            cTurtle.reset()
-        elif argv[1] == "follow_wall":
-            cTurtle.subScan()
-            rospy.spin()
-    else:
+
+    if rospy.get_param("~do-reset"):
         cTurtle.reset()
-        cTurtle.subScan()
-        rospy.spin()
+
+    cTurtle.subScan()
+    rospy.spin()
