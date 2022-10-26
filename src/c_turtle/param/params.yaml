@@ -5,5 +5,5 @@ max-linVel: 2.0
 linAcc: 1.5
 linDec: 3.0
 max-angVel: 3.0
-angAcc: 4.0
-angDec: 4.0
+angAcc: 8.0
+angDec: 8.0
