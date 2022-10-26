@@ -44,3 +44,7 @@ or, more conviniently, by executing the [runsim.sh script](./runsim.sh).
 Starting the controller can be done by calling `roslaunch c_turtle c_turtle.launch`. As you will probably do this in another
 shell instance, don't forget to `source devel/setup.sh`. The controller uses the config stored on
 [its config file](./src/c_turtle/param/params.yaml). Feel free to play with it.
+
+Note: if you want to change the sampling rate of the LiDAR, you have to update it both in the
+[robot config file](./c_world/cturtle.model.yaml) and on the
+[controller config file](./src/c_turtle/param/params.yaml).
