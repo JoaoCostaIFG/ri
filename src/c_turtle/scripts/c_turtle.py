@@ -192,7 +192,7 @@ class CTurtle:
                 dirs["edges"]["back_left"] == inf
                 and STOP_MIN < dirs["edges"]["left"] < STOP_MAX
             ):
-                rospy.logerr("End left: %f", dirs["edges"]["left"])
+                rospy.loginfo("End left: %f", dirs["edges"]["left"])
                 self.linVel = 0
                 self.angVel = 0
                 self.moveTurtle()
@@ -201,7 +201,7 @@ class CTurtle:
                 dirs["edges"]["back_right"] == inf
                 and STOP_MIN < dirs["edges"]["right"] < STOP_MAX
             ):
-                rospy.logerr("End right: %f", dirs["edges"]["right"])
+                rospy.loginfo("End right: %f", dirs["edges"]["right"])
                 self.linVel = 0
                 self.angVel = 0
                 self.moveTurtle()
