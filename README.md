@@ -16,6 +16,17 @@ at the bottom of the cedilla. For this, the robot used a LiDAR.
 
 **Grade:** TBD.
 
+### 2nd Project
+
+My group decided to undertake the task of porting
+[flatland](https://github.com/avidbots/flatland) to Ros2. There was already some
+work in place for this, so we continued it.
+
+You can see the progress at [flatland](https://github.com/joaoCostaIFG/flatland)
+and [turtlebot_flatland](https://github.com/joaoCostaIFG/turtlebot_flatland).
+
+**Grade:** TBD.
+
 ## License
 
 Unless stated otherwise, the code in this repository is licensed under a MIT
