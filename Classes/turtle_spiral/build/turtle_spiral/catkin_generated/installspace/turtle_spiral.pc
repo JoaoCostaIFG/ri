@@ -1,0 +1,8 @@
+prefix=/RI/turtle_spiral/install
+
+Name: turtle_spiral
+Description: Description of turtle_spiral
+Version: 0.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 
