@@ -3,7 +3,9 @@
 from random import random, uniform
 from math import radians, inf, isnan, pi, cos, sin, sqrt
 
-import rospy
+import rclpy
+from rclpy.publisher import Publisher
+from rclpy.node import Node
 from geometry_msgs.msg import Twist, Pose2D
 from sensor_msgs.msg import LaserScan
 from nav_msgs.msg import Odometry
@@ -37,8 +39,7 @@ def pointDist(p1, p2) -> float:
 def laserToPoint(laser):
     return (laser[1] * cos(laser[0]), laser[1] * sin(laser[0]))
 
-
-class CTurtle:
+class CTurtle(Node):
     doStop = True
     doOdometry = False
 
@@ -53,17 +54,28 @@ class CTurtle:
     k = 3
 
     def __init__(self) -> None:
+        super().__init__("CTurtle")
+
+        # self.doOdometry = self.get_parameter("~do-odometry")
+        # self.doStop = self.get_parameter("~do-stop")
+        # self.maxLinVel = self.get_parameter("~max-linVel")
+        # self.maxAngVel = self.get_parameter("~max-angVel")
+        # self.linAcc = self.get_parameter("~linAcc")
+        # self.linDec = self.get_parameter("~linDec")
+        # self.angAcc = self.get_parameter("~angAcc")
+        # self.angDec = self.get_parameter("~angDec")
+
         self.vel = Twist()
 
-        self.pub = rospy.Publisher("/cmd_vel", Twist, queue_size=1)
+        self.pub:Publisher = self.create_publisher(Twist, "/cmd_vel", 1)
         if CTurtle.doOdometry:
             print('"seq","sec","x","y"')
-            rospy.Subscriber(
-                "/odometry/ground_truth", Odometry, self._odometryGroundTruth
+            self.create_subscription(
+                Odometry, "/odometry/ground_truth", self._odometryGroundTruth, 1
             )
 
     def subScan(self):
-        rospy.Subscriber("/scan", LaserScan, self._scanCallback)
+        self.create_subscription(LaserScan, "/scan", self._scanCallback, 1)
 
     def _odometryGroundTruth(self, odometry):
         print(
@@ -192,7 +204,7 @@ class CTurtle:
                 dirs["edges"]["back_left"] == inf
                 and STOP_MIN < dirs["edges"]["left"] < STOP_MAX
             ):
-                rospy.loginfo("End left: %f", dirs["edges"]["left"])
+                self.get_logger().info("End left: %f", dirs["edges"]["left"])
                 self.linVel = 0
                 self.angVel = 0
                 self.moveTurtle()
@@ -201,7 +213,7 @@ class CTurtle:
                 dirs["edges"]["back_right"] == inf
                 and STOP_MIN < dirs["edges"]["right"] < STOP_MAX
             ):
-                rospy.loginfo("End right: %f", dirs["edges"]["right"])
+                self.get_logger().info("End right: %f", dirs["edges"]["right"])
                 self.linVel = 0
                 self.angVel = 0
                 self.moveTurtle()
@@ -315,27 +327,24 @@ class CTurtle:
         vel.angular.z = 0
         self.pub.publish(vel)
 
-        rospy.wait_for_service("/move_model")
-        moveService = rospy.ServiceProxy("/move_model", MoveModel)
-        moveService("CTurtle", Pose2D(uniform(-6, 6), uniform(-5, 7), uniform(0, 359)))
+        client = self.create_client(MoveModel, "/move_model")
+        client.wait_for_service()
+        request = MoveModel.Request()
+        request.name = "CTurtle"
+        request.pose = Pose2D(uniform(-6, 6), uniform(-5, 7), uniform(0, 359))
+        client.call(request)
 
 
-if __name__ == "__main__":
-    rospy.init_node("CTurtle", anonymous=True)
-
-    CTurtle.doOdometry = rospy.get_param("~do-odometry")
-    CTurtle.doStop = rospy.get_param("~do-stop")
-    CTurtle.maxLinVel = rospy.get_param("~max-linVel")
-    CTurtle.maxAngVel = rospy.get_param("~max-angVel")
-    CTurtle.linAcc = rospy.get_param("~linAcc")
-    CTurtle.linDec = rospy.get_param("~linDec")
-    CTurtle.angAcc = rospy.get_param("~angAcc")
-    CTurtle.angDec = rospy.get_param("~angDec")
-
+def main(args = None):
+    rclpy.init()
+    
     cTurtle = CTurtle()
 
-    if rospy.get_param("~do-reset"):
-        cTurtle.reset()
+    # if cTurtle.get_parameter("~do-reset"):
+    #     cTurtle.reset()
 
     cTurtle.subScan()
-    rospy.spin()
+    rclpy.spin(cTurtle)
+
+if __name__ == "__main__":
+    main()
