@@ -25,6 +25,9 @@ work in place for this, so we continued it.
 You can see the progress at [flatland](https://github.com/joaoCostaIFG/flatland)
 and [turtlebot_flatland](https://github.com/joaoCostaIFG/turtlebot_flatland).
 
+The `ros2` branch of this repository contains the translation of our first
+project to Ros2, using our version of flatland.
+
 **Grade:** TBD.
 
 ## License
