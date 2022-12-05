@@ -29,7 +29,7 @@ RAD157_5 = radians(157.5)
 
 
 def clamp(val, minVal, maxVal):
-    return max(min(val, maxVal), minVal)
+    return float(max(min(val, maxVal), minVal))
 
 
 def pointDist(p1, p2) -> float:
@@ -204,7 +204,7 @@ class CTurtle(Node):
                 dirs["edges"]["back_left"] == inf
                 and STOP_MIN < dirs["edges"]["left"] < STOP_MAX
             ):
-                self.get_logger().info("End left: %f", dirs["edges"]["left"])
+                self.get_logger().info(f"End left:  {dirs['edges']['left']}")
                 self.linVel = 0
                 self.angVel = 0
                 self.moveTurtle()
@@ -213,7 +213,7 @@ class CTurtle(Node):
                 dirs["edges"]["back_right"] == inf
                 and STOP_MIN < dirs["edges"]["right"] < STOP_MAX
             ):
-                self.get_logger().info("End right: %f", dirs["edges"]["right"])
+                self.get_logger().info(f"End right: {dirs['edges']['right']}")
                 self.linVel = 0
                 self.angVel = 0
                 self.moveTurtle()
