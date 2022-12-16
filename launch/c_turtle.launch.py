@@ -54,7 +54,7 @@ def generate_launch_description():
             Node(
                 name="c_turtle",
                 package="c_turtle",
-                executable="c_turtle.py",
+                executable="c_turtle",
                 output="screen",
             ),
 
