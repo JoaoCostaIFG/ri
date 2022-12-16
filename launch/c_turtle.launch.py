@@ -51,12 +51,12 @@ def generate_launch_description():
                 ],
             ),
 
-            # Node(
-            #     name="c_turtle",
-            #     package="c_turtle",
-            #     executable="c_turtle.py",
-            #     output="screen",
-            # ),
+            Node(
+                name="c_turtle",
+                package="c_turtle",
+                executable="c_turtle.py",
+                output="screen",
+            ),
 
             # ****** Maps *****
             Node(
