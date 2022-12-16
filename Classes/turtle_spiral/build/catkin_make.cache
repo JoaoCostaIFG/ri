@@ -1,2 +1,0 @@
-turtle_spiral
--DCATKIN_DEVEL_PREFIX=/RI/turtle_spiral/devel -DCMAKE_INSTALL_PREFIX=/RI/turtle_spiral/install -G Unix Makefiles
