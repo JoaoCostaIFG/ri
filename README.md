@@ -14,7 +14,7 @@ finding the stop point. The map was shaped like a
 [Ç (c-cedilla)](https://en.wikipedia.org/wiki/%C3%87) and the robot had to stop
 at the bottom of the cedilla. For this, the robot used a LiDAR.
 
-**Grade:** TBD.
+**Grade:** 19
 
 ### 2nd Project
 
@@ -28,7 +28,7 @@ and [turtlebot_flatland](https://github.com/joaoCostaIFG/turtlebot_flatland).
 The `ros2` branch of this repository contains the translation of our first
 project to Ros2, using our version of flatland.
 
-**Grade:** TBD.
+**Grade:** 19
 
 ## License
 
